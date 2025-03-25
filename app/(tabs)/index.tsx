@@ -1,74 +1,144 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { useColorScheme } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, Alert, Animated } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import MultiSelect from 'react-native-multiple-select';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const CurrencyConverter = () => {
+  const [amount, setAmount] = useState('');
+  const [baseCurrency, setBaseCurrency] = useState('USD');
+  const [targetCurrencies, setTargetCurrencies] = useState<string[]>([]);
+  const [convertedAmounts, setConvertedAmounts] = useState<{ [key: string]: string }>({});
+  const [rates, setRates] = useState<{ [key: string]: number }>({});
+  const colorScheme = useColorScheme();
+  const fadeAnim = useState(new Animated.Value(0))[0];
 
-export default function HomeScreen() {
+  const currencyOptions = [
+    { id: 'USD', name: 'USD' },
+    { id: 'EUR', name: 'EUR' },
+    { id: 'GBP', name: 'GBP' },
+    { id: 'LKR', name: 'LKR' },
+  ];
+
+  useEffect(() => {
+    fetchExchangeRates();
+  }, [baseCurrency]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  }, [convertedAmounts]);
+
+  const fetchExchangeRates = async () => {
+    try {
+      const response = await fetch(
+        `https://api.exchangerate-api.com/v4/latest/${baseCurrency}`
+      );
+      const data = await response.json();
+      setRates(data.rates);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to fetch exchange rates. Please try again.');
+    }
+  };
+
+  const convertCurrency = () => {
+    if (!amount || isNaN(Number(amount))) {
+      Alert.alert('Invalid Input', 'Please enter a valid number.');
+      return;
+    }
+    const newConvertedAmounts: { [key: string]: string } = {};
+    targetCurrencies.forEach((currency) => {
+      if (rates[currency]) {
+        newConvertedAmounts[currency] = (parseFloat(amount) * rates[currency]).toFixed(2);
+      }
+    });
+    setConvertedAmounts(newConvertedAmounts);
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={[styles.container, colorScheme === 'dark' ? styles.darkMode : styles.lightMode]}>
+      <Text style={styles.title}>Currency Converter</Text>
+      <TextInput
+        style={styles.input}
+        keyboardType="numeric"
+        placeholder="Enter amount"
+        value={amount}
+        onChangeText={setAmount}
+      />
+      
+      <Text>Select Base Currency:</Text>
+      <Picker selectedValue={baseCurrency} onValueChange={setBaseCurrency}>
+        {currencyOptions.map((currency) => (
+          <Picker.Item key={currency.id} label={currency.name} value={currency.id} />
+        ))}
+      </Picker>
+      
+      <Text>Select Target Currencies:</Text>
+      <MultiSelect
+        items={currencyOptions}
+        uniqueKey="id"
+        onSelectedItemsChange={(items) => setTargetCurrencies(items)}
+        selectedItems={targetCurrencies}
+        selectText="Pick Currencies"
+        searchInputPlaceholderText="Search Currencies..."
+        tagRemoveIconColor="#CCC"
+        tagBorderColor="#CCC"
+        tagTextColor="#000"
+        selectedItemTextColor="#CCC"
+        selectedItemIconColor="#CCC"
+        itemTextColor="#000"
+        displayKey="name"
+        searchInputStyle={{ color: '#CCC' }}
+        submitButtonText="Confirm"
+      />
+      
+      <Button title="Convert" onPress={convertCurrency} />
+      {Object.keys(convertedAmounts).length > 0 && (
+        <Animated.View style={{ opacity: fadeAnim }}>
+          {Object.entries(convertedAmounts).map(([currency, value]) => (
+            <Text key={currency} style={styles.result}>
+              Converted Amount: {value} {currency}
+            </Text>
+          ))}
+        </Animated.View>
+      )}
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  lightMode: {
+    backgroundColor: '#fff',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  darkMode: {
+    backgroundColor: '#333',
+    color: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 5,
+  },
+  result: {
+    fontSize: 18,
+    marginTop: 10,
+    fontWeight: 'bold',
   },
 });
+
+export default CurrencyConverter;
